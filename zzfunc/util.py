@@ -74,7 +74,7 @@ def mixed_depth(src_hi, flt_hi, src_lo, flt_lo, planes=None):
     if src_hi.format != flt_hi.format:
         raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with low-depth clips')
     core = vs.core
-    numplanes = formats[0].num_planes
+    numplanes = src_hi.format.num_planes
     planes = parse_planes(planes, numplanes, 'util.mixed_depth')
     return core.std.Expr([src_hi, flt_hi, src_lo, flt_lo], ['z a = x y ?' if x in planes else '' for x in range(numplanes)])
 
@@ -91,7 +91,7 @@ def get_w(height, ar=None, even=None, ref=None):
             try:
                 ar = ref.width / ref.height
             except ZeroDivisionError:
-                raise TypeError('zz.util.width: ref must have constant width/height')
+                raise TypeError('zz.w ref must have constant width/height')
         else:
             ar = 16/9
     width = height * ar
@@ -144,7 +144,7 @@ get_y, get_u, get_v, get_r, get_g, get_b = [partial(_get_plane, plane=x) for x i
 
 
 
-def parse_planes(planes, numplanes=3, name='filtername'):
+def parse_planes(planes, numplanes=3, name='util.parse_planes'):
     planes = fallback(planes, list(range(numplanes)))
     if isinstance(planes, int):
         planes = [planes]
@@ -157,15 +157,15 @@ def parse_planes(planes, numplanes=3, name='filtername'):
         raise ValueError(f'zzfunc.{name}: one or more "planes" values out of bounds')
     return planes
 
-def vstofmtc(planes, numplanes=3):
-    planes = parse_planes(planes, numplanes, name='util.vstofmtc')
+def vs_to_fmtc(planes, numplanes=3):
+    planes = parse_planes(planes, numplanes, name='util.vs_to_fmtc')
     return [3 if x in planes else 1 for x in range(numplanes)]
 
-def vstoplacebo(planes):
-    planes = parse_planes(planes, name='util.vstoplacebo')
-    return sum(2 ** i for i in planes)
+def vs_to_placebo(planes, numplanes=3):
+    planes = parse_planes(planes, numplanes, 'util.vs_to_placebo')
+    return sum(2 ** i for i in planes) or 1
 
-def vstomv(planes): 
+def vs_to_mv(planes): 
     planes = str(planes).strip('[]') \
                         .replace(',','') \
                         .replace(' ','')
@@ -175,14 +175,14 @@ def vstomv(planes):
              '12': 3
            }.get(planes, 4)
 
-def fmtctovs(planes):
+def fmtc_to_vs(planes):
     out = []
     for x in range(len(planes)):
         if planes[x] == 3:
             out += [x]
     return out
 
-def f3ktovs(y, cb, cr, grainy, grainc):
+def f3k_to_vs(y, cb, cr, grainy, grainc):
     planes = []
     params = [sum(x, y) for x, y in (y, cb, cr), (grainy, grainc, grainc)]
     for x in range(3):
