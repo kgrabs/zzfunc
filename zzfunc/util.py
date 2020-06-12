@@ -68,15 +68,92 @@ def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=Non
 
 
 
-def mixed_depth(src_hi, flt_hi, src_lo, flt_lo, planes=None):
-    if src_lo.format != flt_lo.format:
-        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with high-depth clips')
-    if src_hi.format != flt_hi.format:
-        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with low-depth clips')
+
+def xpassfilter(clip, prefilter, hifilter=None, lofilter=None, safe=True, planes=None):
     core = vs.core
-    numplanes = src_hi.format.num_planes
-    planes = parse_planes(planes, numplanes, 'util.mixed_depth')
-    return core.std.Expr([src_hi, flt_hi, src_lo, flt_lo], ['z a = x y ?' if x in planes else '' for x in range(numplanes)])
+    
+    fmt = clip.format
+    planes = parse_planes(planes, fmt.num_planes, 'util.xpassfilter')
+    
+    loclip = prefilter(clip)
+    hiclip = core.std.MakeDiff(clip, loclip, planes=planes)
+    if fmt.sample_type=vs.INTEGER and safe:
+        loclip = core.std.MakeDiff(clip, hiclip, planes=planes)
+    
+    if lofilter is not None:
+        loclip = hifilter(hiclip)
+    
+    if hifilter is not None:
+        hiclip = hifilter(hiclip)
+    
+    return core.std.MergeDiff(loclip, hiclip, planes=planes)
+
+
+
+# "planes" parameter not really recommended since it trashes planes, but its there if you need it
+def padding(clip, left=0, right=0, top=0, bottom=0, planes=None):
+    core = vs.core
+    if bits > 8:
+        numplanes = clip.format.num_planes
+        planes = parse_planes(planes, numplanes, 'util.padding')
+        return core.fmtc.resample(clip, sx=-left, sy=-top, sw=clip.width+left+right, sh=clip.height+top+bottom, kernel='point', planes=vs_to_fmtc(planes, numplanes))
+    return core.resize.Point(clip, src_left=-left, src_top=-top, src_width=clip.width+left+right, src_height=clip.height+top+bottom)
+
+
+
+def shiftplanes(clip, x=0, y=0, planes=None, nop=2):
+    core = vs.core
+    
+    fmt = clip.format
+    bits = fmt.bits_per_sample
+    hss = fmt.subsampling_w
+    vss = fmt.subsampling_h
+    numplanes = fmt.num_planes
+    planes = parse_planes(clip, planes)
+    fmtcplanes = vs_to_fmtc(planes, nop, numplanes)
+    
+    if isinstance(x, int):
+        x = [x]
+    while len(x) < numplanes:
+        x.append(x[-1])
+    
+    if isinstance(y, int):
+        y = [y]
+    while len(y) < np:
+        y.append(y[-1])
+    
+    if bits > 8:
+        for n in range(1, numplanes):
+            x[n] <<= hss
+            y[n] <<= vss
+        return core.fmtc.resample(clip, x, y, kernel='point', planes=fmtcplanes)
+    clips = split(clip)
+    for p in planes:
+        clips[p] = core.resize.Point(clip, src_left=x[p], src_top=y[p])
+    return join(clips)
+
+
+
+def shiftframesmany(clip, radius=[1, 1]):
+    clips = []
+    for x in range(-radius[0],0):
+        clips += [clip[0] * -x + clip[:x] ]
+    clips += [clip]
+    for x in range(1, radius[1]+1):
+        clips += [clip[x:] + clip[-1] * x]
+    return clips
+
+def shiftframes(clip, origin=0):
+    if origin == 0:
+        return clip
+    core = vs.core
+    if origin < 0:
+        clips = [clip[0] * abs(origin)]
+        clips+= [clip[:origin]]
+        return core.std.Splice(clips)
+    clips = [clip[origin:]]
+    clips+= [clip[-1] * origin]
+    return core.std.Splice(clips)
 
 
 
@@ -107,7 +184,7 @@ def split(clip):
     fmt = clip.format
     numplanes = fmt.num_planes
     if numplanes == 1:
-        return clip
+        return [clip]
     return [_get_plane(clip, x) for x in range(numplanes)]
 
 def join(clipa, clipb=None, clipc=None, colorfamily=None):
@@ -125,6 +202,8 @@ def join(clipa, clipb=None, clipc=None, colorfamily=None):
     if clipc is not None:
         clips[2] = [clipc]
     colorfamily = fallback(colorfamily, vs.RGB if clips[0].format.colorfamily==vs.RGB else vs.YUV)
+    if clips[1] is None:
+        return clips[0]
     if clips[2] is None:
         return core.std.ShufflePlanes(clips, planes=[0, 1, 2], colorfamily=colorfamily)
     return core.std.ShufflePlanes(clips, planes=[0] * 3, colorfamily=colorfamily)
@@ -144,6 +223,18 @@ get_y, get_u, get_v, get_r, get_g, get_b = [partial(_get_plane, plane=x) for x i
 
 
 
+def mixed_depth(src_hi, flt_hi, src_lo, flt_lo, planes=None):
+    if src_lo.format != flt_lo.format:
+        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with high-depth clips')
+    if src_hi.format != flt_hi.format:
+        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with low-depth clips')
+    core = vs.core
+    numplanes = src_hi.format.num_planes
+    planes = parse_planes(planes, numplanes, 'util.mixed_depth')
+    return core.std.Expr([src_hi, flt_hi, src_lo, flt_lo], ['z a = x y ?' if x in planes else '' for x in range(numplanes)])
+
+
+
 def parse_planes(planes, numplanes=3, name='util.parse_planes'):
     planes = fallback(planes, list(range(numplanes)))
     if isinstance(planes, int):
@@ -157,9 +248,9 @@ def parse_planes(planes, numplanes=3, name='util.parse_planes'):
         raise ValueError(f'zzfunc.{name}: one or more "planes" values out of bounds')
     return planes
 
-def vs_to_fmtc(planes, numplanes=3):
+def vs_to_fmtc(planes, nop=1, numplanes=3):
     planes = parse_planes(planes, numplanes, name='util.vs_to_fmtc')
-    return [3 if x in planes else 1 for x in range(numplanes)]
+    return [3 if x in planes else nop for x in range(numplanes)]
 
 def vs_to_placebo(planes, numplanes=3):
     planes = parse_planes(planes, numplanes, 'util.vs_to_placebo')
