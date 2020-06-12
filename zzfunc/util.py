@@ -68,6 +68,18 @@ def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=Non
 
 
 
+def mixed_depth(src_hi, flt_hi, src_lo, flt_lo, planes=None):
+    if src_lo.format != flt_lo.format:
+        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with high-depth clips')
+    if src_hi.format != flt_hi.format:
+        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with low-depth clips')
+    core = vs.core
+    numplanes = formats[0].num_planes
+    planes = parse_planes(planes, numplanes, 'util.mixed_depth')
+    return core.std.Expr([src_hi, flt_hi, src_lo, flt_lo], ['z a = x y ?' if x in planes else '' for x in range(numplanes)])
+
+
+
 def src_left(iw=1920., ow=1280.): return 0.25*(1.0-iw/ow)
 
 def get_c(b=0.0, fac=2): return (1.0 - abs(b)) / fac
@@ -145,8 +157,8 @@ def parse_planes(planes, numplanes=3, name='filtername'):
         raise ValueError(f'zzfunc.{name}: one or more "planes" values out of bounds')
     return planes
 
-def vstoavs(planes, numplanes=3):
-    planes = parse_planes(planes, numplanes, name='util.vstoavs')
+def vstofmtc(planes, numplanes=3):
+    planes = parse_planes(planes, numplanes, name='util.vstofmtc')
     return [3 if x in planes else 1 for x in range(numplanes)]
 
 def vstoplacebo(planes):
@@ -163,12 +175,20 @@ def vstomv(planes):
              '12': 3
            }.get(planes, 4)
 
-def avstovs(planes):
+def fmtctovs(planes):
     out = []
     for x in range(len(planes)):
         if planes[x] == 3:
             out += [x]
     return out
+
+def f3ktovs(y, cb, cr, grainy, grainc):
+    planes = []
+    params = [sum(x, y) for x, y in (y, cb, cr), (grainy, grainc, grainc)]
+    for x in range(3):
+        if params[x] > 0:
+            planes += [x]
+    return planes
 
 def append_params(params, length=3):
     if not isinstance(params, list):
@@ -179,7 +199,7 @@ def append_params(params, length=3):
 
 # if param[x] is a number less than or equal to "zero" or is explicitly False or None, delete x from "planes"
 # if param[x] is a number greater than "zero" or is explicitly True, pass x if it was originally in "planes"
-def eval_planes(params, planes, zero=0):
+def eval_planes(planes, params, zero=0):
     if not isinstance(params, list):
         raise TypeError('zzfunc.util.eval_planes: params must be an array')
     if not isinstance(planes, list):
@@ -198,6 +218,7 @@ def eval_planes(params, planes, zero=0):
 
 
 # No idea if this will prove useful or not
+# Put it in misc with the other useless stuff?
 def GetMatrix(clip, matrix=None, name='getmatrix'):
     
     if matrix is 2:
