@@ -159,7 +159,9 @@ def parse_planes(planes, numplanes=3, name='filtername'):
         raise ValueError(f'zzfunc.{name}: one or more "planes" values out of bounds')
     return planes
 
-def vstoavs(planes, numplanes=3): return [3 if x in planes else 1 for x in range(numplanes)]
+def vstoavs(planes, numplanes=3):
+    planes = parse_planes(planes, numplanes, name='util.vstoavs')
+    return [3 if x in planes else 1 for x in range(numplanes)]
 
 def vstoplacebo(planes):
     planes = parse_planes(planes, name='util.vstoplacebo')
