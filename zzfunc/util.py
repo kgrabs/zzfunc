@@ -70,9 +70,22 @@ def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=Non
 
 def src_left(iw=1920., ow=1280.): return 0.25*(1.0-iw/ow)
 
+def get_c(b=0.0, fac=2): return (1.0 - abs(b)) / fac
 
-
-def bicubic_c(b=0.0, fac=2): return (1.0 - abs(b)) / fac
+def get_w(height, ar=None, even=None, ref=None):
+    even = fallback(even, height%2 == 0)
+    if ar is None:
+        if ref is not None:
+            try:
+                ar = ref.width / ref.height
+            except ZeroDivisionError:
+                raise TypeError('zz.util.width: ref must have constant width/height')
+        else:
+            ar = 16/9
+    width = height * ar
+    if even:
+        return round(width / 2) * 2
+    return round(width)
 
 
 
@@ -126,23 +139,6 @@ def _get_plane(clip, plane):
     return core.std.ShufflePlanes(clip, plane, vs.GRAY)
 
 get_y, get_u, get_v, get_r, get_g, get_b = [partial(_get_plane, plane=x) for x in (0,1,2,0,1,2)]
-
-
-
-def width(height, ar=None, even=None, ref=None):
-    even = fallback(even, height%2 == 0)
-    if ar is None:
-        if ref is not None:
-            try:
-                ar = ref.width / ref.height
-            except ZeroDivisionError:
-                raise TypeError('zz.util.width: ref must have constant width/height')
-        else:
-            ar = 16/9
-    width = height * ar
-    if even:
-        return round(width / 2) * 2
-    return round(width)
 
 
 
