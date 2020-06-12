@@ -68,7 +68,6 @@ def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=Non
 
 
 
-
 def xpassfilter(clip, prefilter, hifilter=None, lofilter=None, safe=True, planes=None):
     core = vs.core
     
@@ -81,7 +80,7 @@ def xpassfilter(clip, prefilter, hifilter=None, lofilter=None, safe=True, planes
         loclip = core.std.MakeDiff(clip, hiclip, planes=planes)
     
     if lofilter is not None:
-        loclip = hifilter(hiclip)
+        loclip = lofilter(hiclip)
     
     if hifilter is not None:
         hiclip = hifilter(hiclip)
@@ -112,15 +111,8 @@ def shiftplanes(clip, x=0, y=0, planes=None, nop=2):
     planes = parse_planes(clip, planes)
     fmtcplanes = vs_to_fmtc(planes, nop, numplanes)
     
-    if isinstance(x, int):
-        x = [x]
-    while len(x) < numplanes:
-        x.append(x[-1])
-    
-    if isinstance(y, int):
-        y = [y]
-    while len(y) < np:
-        y.append(y[-1])
+    x = append_params(x, numplanes)
+    y = append_params(y, numplanes)
     
     if bits > 8:
         for n in range(1, numplanes):
