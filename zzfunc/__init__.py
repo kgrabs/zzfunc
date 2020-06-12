@@ -7,8 +7,7 @@ r = util.get_r
 g = util.get_g
 b = util.get_b
 
-w = util.width
-
+w = util.get_w
 c = util.bicubic_c
 
 split = util.split
