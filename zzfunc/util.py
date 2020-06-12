@@ -76,7 +76,7 @@ def bicubic_c(b=0.0, fac=2): return (1.0 - abs(b)) / fac
 
 
 
-def split(clip, matrix=None):
+def split(clip):
     if isinstance(clip, list):
         return clip
     fmt = clip.format
