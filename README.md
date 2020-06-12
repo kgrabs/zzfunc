@@ -24,11 +24,11 @@ Set `strict` to whatever you want to happen when the filtered pixels aren't homo
 - False: Just take whichever pixel changed the most **(default)**
 - True: Take the average of the filtered clips (just a convenience so you dont have to type `'y z + 2 /'`)
 - Supply a RPN string for custom output. Syntax is as follows:
-  - `'x'`, `'y'` and `'z'`: Correspond to `source`, `filtered_a` and `filtered_b`, respectively
-  - `'minimum'`: Lowest possible value for the plane. -0.5 for chroma planes in float clips, everything else is 0
-  - `'neutral'`: A null MakeDiff pixel. `128` for 8 bit, `32768` for 16 bit, `0` for float
-  - `'peak'`: Highest possible value for the plane. 255/65535/1/0.5 for 8 bit/16 bit/float luma/float chroma
-  - `'a'`, `'b'` and `'c'`: Clips provided via the `ref` parameter. I have no idea if this would ever be useful or if it even works since I didn't test it
+  - `x`, `y` and `z`: Correspond to `source`, `filtered_a` and `filtered_b`, respectively
+  - `minimum`: Lowest possible value for the plane. -0.5 for chroma planes in float clips, everything else is 0
+  - `neutral`: A null MakeDiff pixel. `128` for 8 bit, `32768` for 16 bit, `0` for float
+  - `peak`: Highest possible value for the plane. 255/65535/1/0.5 for 8 bit/16 bit/float luma/float chroma
+  - `a`, `b` and `c`: Clips provided via the `ref` parameter. I have no idea if this would ever be useful or if it even works since I didn't test it
  
 ### get_y, get_u, get_v
 ```
@@ -54,14 +54,14 @@ With RGB input it behaves like get_r/g/b
 ```
 zzfunc.join(clipa, clipb=None, clipc=None, colorfamily=None)
 ```
-Give `clipa` an array and it will behave like vsutil.join
+Give `clipa` an array and it will behave like vsutil's
 
-Give `clipa` an array and supply `clipb` or `clipc` and it will substitute them for the corresponding clip from `clipa`
+Give `clipa` an array and also supply `clipb` or `clipc` and it will substitute them for the corresponding clip from `clipa`
 
-Give it 2 clips (either as an array or as single clips in `clipa` and `clipb`) and it will behave like `mergechroma`
+Give it 2 clips (either as an array or as single clips) and it will behave like `mergechroma`
 
-Give one clip each to `clipa`, `clipb` and `clipc` is the same as giving `clipa` an array because fuck typing the `[]` with vsutil's version
-###get_w
+Give one clip each to `clipa`, `clipb` and `clipc` in your vpy scripts because fuck typing `[]` every time
+### get_w
 ```
 zzfunc.w(height, ar=None, even=None, ref=None)
 ```
