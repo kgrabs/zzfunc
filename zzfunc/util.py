@@ -117,16 +117,6 @@ def join(clipa, clipb=None, clipc=None, colorfamily=None):
         return core.std.ShufflePlanes(clips, planes=[0, 1, 2], colorfamily=colorfamily)
     return core.std.ShufflePlanes(clips, planes=[0] * 3, colorfamily=colorfamily)
 
-def mergechroma(luma, chroma, colorfamily=vs.YUV):
-    if luma.format.color_family == vs.RGB:
-        raise TypeError('zzfunc.mergechroma: RGB not supported')
-    if chroma.format.color_family in (vs.RGB, vs.GRAY):
-        raise TypeError('zzfunc.mergechroma: no chroma planes found')
-    core = vs.core
-    return core.std.ShufflePlanes([luma, chroma], [0, 1, 2], colorfamily)
-
-def mergeluma(chroma, luma, colorfamily=vs.YUV): return mergechroma(luma, chroma, colorfamily)
-
 
 
 def _get_plane(clip, plane):
