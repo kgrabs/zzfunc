@@ -76,7 +76,7 @@ def xpassfilter(clip, prefilter, hifilter=None, lofilter=None, safe=True, planes
     
     loclip = prefilter(clip)
     hiclip = core.std.MakeDiff(clip, loclip, planes=planes)
-    if fmt.sample_type=vs.INTEGER and safe:
+    if fmt.sample_type == vs.INTEGER and safe:
         loclip = core.std.MakeDiff(clip, hiclip, planes=planes)
     
     if lofilter is not None:
@@ -92,7 +92,7 @@ def xpassfilter(clip, prefilter, hifilter=None, lofilter=None, safe=True, planes
 # "planes" parameter not really recommended since it trashes planes, but its there if you need it
 def padding(clip, left=0, right=0, top=0, bottom=0, planes=None):
     core = vs.core
-    if bits > 8:
+    if clip.format.bits_per_sample > 8:
         numplanes = clip.format.num_planes
         planes = parse_planes(planes, numplanes, 'util.padding')
         return core.fmtc.resample(clip, sx=-left, sy=-top, sw=clip.width+left+right, sh=clip.height+top+bottom, kernel='point', planes=vs_to_fmtc(planes, numplanes))
@@ -108,20 +108,26 @@ def shiftplanes(clip, x=0, y=0, planes=None, nop=2):
     hss = fmt.subsampling_w
     vss = fmt.subsampling_h
     numplanes = fmt.num_planes
-    planes = parse_planes(clip, planes)
-    fmtcplanes = vs_to_fmtc(planes, nop, numplanes)
+    planes = parse_planes(planes, numplanes, 'util.shiftplanes')
+    fmtcplanes = vs_to_fmtc(planes, numplanes, nop)
     
+    x = x if isinstance(x, list) else [x]
+    if len(x) == 1:
+        x += [x[0] >> hss]
     x = append_params(x, numplanes)
+    y = y if isinstance(y, list) else [y]
+    if len(y) == 1:
+        y += [y[0] >> vss]
     y = append_params(y, numplanes)
     
     if bits > 8:
         for n in range(1, numplanes):
             x[n] <<= hss
             y[n] <<= vss
-        return core.fmtc.resample(clip, x, y, kernel='point', planes=fmtcplanes)
+        return core.fmtc.resample(clip, sx=x, sy=y, kernel='point', planes=fmtcplanes)
     clips = split(clip)
     for p in planes:
-        clips[p] = core.resize.Point(clip, src_left=x[p], src_top=y[p])
+        clips[p] = core.resize.Point(clips[p], src_left=x[p], src_top=y[p])
     return join(clips)
 
 
@@ -146,6 +152,18 @@ def shiftframes(clip, origin=0):
     clips = [clip[origin:]]
     clips+= [clip[-1] * origin]
     return core.std.Splice(clips)
+
+
+
+def mixed_depth(src_hi, flt_hi, src_lo, flt_lo, planes=None):
+    if src_lo.format != flt_lo.format:
+        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with high-depth clips')
+    if src_hi.format != flt_hi.format:
+        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with low-depth clips')
+    core = vs.core
+    numplanes = src_hi.format.num_planes
+    planes = parse_planes(planes, numplanes, 'util.mixed_depth')
+    return core.std.Expr([src_hi, flt_hi, src_lo, flt_lo], ['z a = x y ?' if x in planes else '' for x in range(numplanes)])
 
 
 
@@ -180,7 +198,6 @@ def split(clip):
     return [_get_plane(clip, x) for x in range(numplanes)]
 
 def join(clipa, clipb=None, clipc=None, colorfamily=None):
-    core = vs.core
     if isinstance(clipa, list):
         clips = clipa
     elif isinstance(clipa, tuple):
@@ -193,9 +210,10 @@ def join(clipa, clipb=None, clipc=None, colorfamily=None):
         clips[1] = [clipb]
     if clipc is not None:
         clips[2] = [clipc]
-    colorfamily = fallback(colorfamily, vs.RGB if clips[0].format.colorfamily==vs.RGB else vs.YUV)
     if clips[1] is None:
         return clips[0]
+    core = vs.core
+    colorfamily = fallback(colorfamily, vs.RGB if clips[0].format.color_family==vs.RGB else vs.YUV)
     if clips[2] is None:
         return core.std.ShufflePlanes(clips, planes=[0, 1, 2], colorfamily=colorfamily)
     return core.std.ShufflePlanes(clips, planes=[0] * 3, colorfamily=colorfamily)
@@ -215,17 +233,12 @@ get_y, get_u, get_v, get_r, get_g, get_b = [partial(_get_plane, plane=x) for x i
 
 
 
-def mixed_depth(src_hi, flt_hi, src_lo, flt_lo, planes=None):
-    if src_lo.format != flt_lo.format:
-        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with high-depth clips')
-    if src_hi.format != flt_hi.format:
-        raise vs.Error('zzfunc.util.mixed_depth: Format mismatch with low-depth clips')
-    core = vs.core
-    numplanes = src_hi.format.num_planes
-    planes = parse_planes(planes, numplanes, 'util.mixed_depth')
-    return core.std.Expr([src_hi, flt_hi, src_lo, flt_lo], ['z a = x y ?' if x in planes else '' for x in range(numplanes)])
-
-
+def append_params(params, length=3):
+    if not isinstance(params, list):
+        params=[params]
+    while len(params)<length:
+        params.append(params[-1])
+    return params[:length]
 
 def parse_planes(planes, numplanes=3, name='util.parse_planes'):
     planes = fallback(planes, list(range(numplanes)))
@@ -240,7 +253,25 @@ def parse_planes(planes, numplanes=3, name='util.parse_planes'):
         raise ValueError(f'zzfunc.{name}: one or more "planes" values out of bounds')
     return planes
 
-def vs_to_fmtc(planes, nop=1, numplanes=3):
+# if param[x] is a number less than or equal to "zero" or is explicitly False or None, delete x from "planes"
+# if param[x] is a number greater than "zero" or is explicitly True, pass x if it was originally in "planes"
+def eval_planes(planes, params, zero=0):
+    if not isinstance(params, list):
+        raise TypeError('zzfunc.util.eval_planes: params must be an array')
+    if not isinstance(planes, list):
+        raise TypeError('zzfunc.util.eval_planes: planes must be an array')
+    process = []
+    for x in range(len(params)):
+        if x in planes:
+            if params[x] is False or params[x] is None:
+                pass
+            elif params[x] is True:
+                process += [x]
+            elif params[x] > zero:
+                process += [x]
+    return process
+
+def vs_to_fmtc(planes, numplanes=3, nop=1):
     planes = parse_planes(planes, numplanes, name='util.vs_to_fmtc')
     return [3 if x in planes else nop for x in range(numplanes)]
 
@@ -267,92 +298,8 @@ def fmtc_to_vs(planes):
 
 def f3k_to_vs(y, cb, cr, grainy, grainc):
     planes = []
-    params = [sum(x, y) for x, y in (y, cb, cr), (grainy, grainc, grainc)]
+    params = [sum(x) for x in zip((y, cb, cr), (grainy, grainc, grainc))]
     for x in range(3):
         if params[x] > 0:
             planes += [x]
     return planes
-
-def append_params(params, length=3):
-    if not isinstance(params, list):
-        params=[params]
-    while len(params)<length:
-        params.append(params[-1])
-    return params[:length]
-
-# if param[x] is a number less than or equal to "zero" or is explicitly False or None, delete x from "planes"
-# if param[x] is a number greater than "zero" or is explicitly True, pass x if it was originally in "planes"
-def eval_planes(planes, params, zero=0):
-    if not isinstance(params, list):
-        raise TypeError('zzfunc.util.eval_planes: params must be an array')
-    if not isinstance(planes, list):
-        raise TypeError('zzfunc.util.eval_planes: planes must be an array')
-    process = []
-    for x in range(len(params)):
-        if x in planes:
-            if params[x] is False or params[x] is None:
-                pass
-            elif params[x] is True:
-                process += [x]
-            elif params[x] > zero:
-                process += [x]
-    return process
-
-
-
-# No idea if this will prove useful or not
-# Put it in misc with the other useless stuff?
-def GetMatrix(clip, matrix=None, name='getmatrix'):
-    
-    if matrix is 2:
-        matrix = None
-    
-    if matrix is not None:
-        if isinstance(matrix, int):
-            return matrix
-        matrix = matrix.lower()
-        if matrix == 'chromacl':  # Chromaticity derived non-constant luminance system
-            return 12
-        if matrix == 'chromancl': # Chromaticity derived constant luminance system
-            return 13
-        if 'u' in matrix:  # Unspecified
-            return GetMatrix(clip, matrix=None)
-        if 'y' in matrix:  # YCgCo
-            return 8
-        #if 'o' in matrix:  # opponent color space
-            #return 100
-        if 'r' in matrix:  # RGB
-            return 0
-        if 'i' in matrix:  # iCtCb
-            return 14
-        if 'f' in matrix:  # fcc
-            return 4
-        if '24' in matrix: # smpte240m
-            return 7
-        if '4' in matrix:  # bt470bg 
-            return 5
-        if '6' in matrix or '1' in matrix: # 601/smpte170m
-            return 6
-        if '7' in matrix:  # bt709
-            return 1
-        if 'n' in matrix or matrix in ('2', '2020'): # 2020/bt2020nc/2020ncl
-            return 9
-        #if '8' in matrix or '5' in matrix: # smpte2085
-            #return 11
-        if '2' in matrix:  # 2020cl/bt2020c/bt2020c
-            return 10
-        raise ValueError(f'zzfunc.{name}: "matrix" string provided was outlandishly wrong')
-    
-    frame = clip.get_frame(0)
-    _Matrix = frame.props.get('_Matrix', 0)
-    
-    if _Matrix is not 0:
-        return _Matrix
-    
-    w, h = frame.width, frame.height
-    
-    if w <= 1024 and h <= 576:
-        return 5
-    if w <= 2048 and h <= 1536:
-        return 1
-    return 9
