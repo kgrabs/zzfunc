@@ -16,6 +16,14 @@ join = util.join
 
 minfilter = util.MinFilter
 maxfilter = util.MaxFilter
+xpassfilter = util.xpassfilter
+
+pad = util.padding
+shiftplanes = util.shiftplanes
+shiftframes = util.shiftframes
+sfm = util.shiftframesmany
+
+mixp = util.mixed_depth
 
 f3kdb = deband.f3kdb
 f3kpf = deband.highpass
