@@ -68,7 +68,7 @@ def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=Non
 
 
 
-def xpassfilter(clip, prefilter, hifilter=None, lofilter=None, safe=True, planes=None):
+def xpassfilter(clip, prefilter, lofilter=None, hifilter=None, safe=True, planes=None):
     core = vs.core
     
     fmt = clip.format
