@@ -25,7 +25,7 @@ def MinFilter(source, filtered_a, filtered_b, planes=None, strict=True):
     
     return core.std.Expr(clips, [(s_expr if strict[x] else expr) if x in planes else '' for x in range(numplanes)])
 
-def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=None):
+def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=None, xor='* 0 <'):
     core = vs.core
     
     fmt = source.format
@@ -57,7 +57,7 @@ def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=Non
     expr = 'x y - abs x z - abs > y z ?'
     
     # build strict expressions
-    s_expr = [f'x y - x z - xor {x} {expr} ?' for x in strict]
+    s_expr = [f'x y - x z - {xor} {x} {expr} ?' for x in strict]
     
     # replace "minimum", "neutral" and "peak" with i.e. for 8 bit: 0, 128, 255
     #                                                   float luma: 0, 0, 1
