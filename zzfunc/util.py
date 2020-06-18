@@ -80,7 +80,7 @@ def xpassfilter(clip, prefilter, lofilter=None, hifilter=None, safe=True, planes
         loclip = core.std.MakeDiff(clip, hiclip, planes=planes)
     
     if lofilter is not None:
-        loclip = lofilter(hiclip)
+        loclip = lofilter(loclip)
     
     if hifilter is not None:
         hiclip = hifilter(hiclip)
@@ -132,26 +132,51 @@ def shiftplanes(clip, x=0, y=0, planes=None, nop=2):
 
 
 
-def shiftframesmany(clip, radius=[1, 1]):
-    clips = []
-    for x in range(-radius[0],0):
-        clips += [clip[0] * -x + clip[:x] ]
-    clips += [clip]
-    for x in range(1, radius[1]+1):
-        clips += [clip[x:] + clip[-1] * x]
-    return clips
-
 def shiftframes(clip, origin=0):
     if origin == 0:
         return clip
-    core = vs.core
+    if isinstance(origin, tuple):
+        origin = list(origin)
+    if isinstance(origin, list):
+        step = -1 if origin[0] > origin[1] else 1
+        return [shiftframes(clip, x) for x in range(origin[0], origin[1] + step, step)]
     if origin < 0:
-        clips = [clip[0] * abs(origin)]
-        clips+= [clip[:origin]]
-        return core.std.Splice(clips)
-    clips = [clip[origin:]]
-    clips+= [clip[-1] * origin]
-    return core.std.Splice(clips)
+        output = clip[0] * abs(origin)
+        output += clip[:origin]
+    else:
+        output = clip[origin:]
+        output += clip[-1] * origin
+    return output
+
+
+
+def Amplify(clip, lo, hi, bits=None, sample=None):
+    core = vs.core
+    
+    fmt = clip.format
+    bits_in = fmt.bits_per_sample
+    sample_in = fmt.sample_type
+    
+    bits = fallback(bits, bits_in)
+    sample = fallback(sample, sample_in if bits == bits_in else 1 if bits == 32 else 0)
+    output_format = core.register_format(vs.GRAY, sample, bits, 0, 0)
+    
+    peak = 1 if sample else (1 << bits) - 1
+    expr = 'x {lo} - {peak/(hi-lo)}'
+    
+    return core.std.Expr(get_y(clip), expr, output_format.id)
+
+
+
+def CombineClips(clips, oper='max', planes=None, prefix='', suffix=''):
+    core = vs.core
+    length = len(clips)
+    numplanes = clip[0].format.num_planes
+    planes = parse_planes(planes, numplanes, 'util.CombineClips')
+    expr = ''.join(XYZs[:length])
+    for x in range(length - 1):
+        expr += f' {oper} '
+    return core.std.Expr(clips, [prefix+expr+suffix if x in planes else '' for x in range(numplanes)])
 
 
 
