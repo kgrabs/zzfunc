@@ -1,8 +1,8 @@
 from vapoursynth import core
-from . import util
+from .util import fallback, parse_planes, append_params, vs_to_mv
 
 def Super(clip, hpad=16, vpad=None, pel=2, levels=0, chroma=True, sharp=2, rfilter=2, pelclip=None, opt=True):
-    vpad = util.fallback(vpad, hpad)
+    vpad = fallback(vpad, hpad)
     if clip.format.sample_type:
         sup = core.mvsf.Super(clip, hpad, vpad, pel, levels, chroma, sharp, rfilter, pelclip)
     else:
@@ -13,18 +13,18 @@ def Super(clip, hpad=16, vpad=None, pel=2, levels=0, chroma=True, sharp=2, rfilt
 
 def Analyse(super, radius=1, blksize=None, blksizev=None, levels=0, search=4, searchparam=2, pelsearch=0, _lambda=None, chroma=True, truemotion=True, lsad=None, plevel=None, _global=None, pnew=None, pzero=None, pglobal=0, overlap=None, overlapv=None, divide=0, badsad=10000., badrange=None, meander=True, trymany=False, fields=False, tff=None, search_coarse=3, dct=0, opt=True):
     
-    radius = util.append_params(radius, 2)
+    radius = append_params(radius, 2)
     
-    blksizev = util.fallback(blksizev, blksize)
-    blksize = util.fallback(blksize, super[1])
-    blksizev = util.fallback(blksizev, super[2])
+    blksizev = fallback(blksizev, blksize)
+    blksize = fallback(blksize, super[1])
+    blksizev = fallback(blksizev, super[2])
     
     super = super[0]
     ssw, ssh = super.format.subsampling_w, super.format.subsampling_h
     
-    overlapv = util.fallback(overlapv, overlap)
-    overlapv = util.fallback(overlapv, blksizev >> 1)
-    overlap = util.fallback(overlap, blksize >> 1)
+    overlapv = fallback(overlapv, overlap)
+    overlapv = fallback(overlapv, blksizev >> 1)
+    overlap = fallback(overlap, blksize >> 1)
     
     overlap = min(overlap, blksize >> 1) >> ssw << ssw)
     overlapv = min(overlapv, blksizev >> 1) >> ssw << ssw)
@@ -32,7 +32,7 @@ def Analyse(super, radius=1, blksize=None, blksizev=None, levels=0, search=4, se
     if super.format.sample_type == vs.FLOAT:
         MAnalyse = core.mvsf.Analyze
     elif blksize == 2:
-        raise ValueError('No')
+        raise ValueError('zzfunc.mv.Analyse: blksize 2 is only compatible with float input')
     else:
         MAnalyse = partial(core.mv.Analyse, opt=opt)
         badsad = round(badsad)
@@ -67,27 +67,27 @@ Analyze = Analyse
 
 def Recalculate(super, vectors, radius=None, thsad=None, smooth=None, blksize=None, blksizev=None, search=None, searchparam=None, _lambda=None, chroma=None, truemotion=None, pnew=None, overlap=None, overlapv=None, divide=None, meander=None, fields=None, tff=None, dct=None, opt=True):
     
-    radius = util.fallback(radius, [len(x) for x in vectors[:2]]))
-    radius = util.append_params(radius, 2)
-    thsad = util.fallback(thsad, vectors[2].get(thsad, 200))
-    smooth = util.fallback(smooth, vectors[2].get(smooth, 1))
-    blksizev = util.fallback(blksizev, blksize)
-    blksize = util.fallback(blksize, vectors[2]['blksize'])
-    blksizev = util.fallback(blksizev, vectors[2]['blksizev'])
-    search = util.fallback(search, vectors[2]['search'])
-    searchparam = util.fallback(searchparam, vectors[2]['searchparam'])
-    _lambda = util.fallback(_lambda, vectors[2]['_lambda'])
-    chroma = util.fallback(chroma, vectors[2]['chroma'])
-    truemotion = util.fallback(truemotion, vectors[2]['truemotion'])
-    pnew = util.fallback(pnew, vectors[2]['pnew'])
-    overlapv = util.fallback(overlapv, overlap)
-    overlap = util.fallback(overlap, vectors[2]['overlap'])
-    overlapv = util.fallback(overlapv, vectors[2]['overlapv'])
-    divide = util.fallback(divide, vectors[2]['divide'])
-    meander = util.fallback(meander, vectors[2]['meander'])
-    fields = util.fallback(fields, vectors[2]['fields'])
-    tff = util.fallback(tff, vectors[2]['tff'])
-    dct = util.fallback(dct, vectors[2]['dct'])
+    radius = fallback(radius, [len(x) for x in vectors[:2]]))
+    radius = append_params(radius, 2)
+    thsad = fallback(thsad, vectors[2].get(thsad, 200))
+    smooth = fallback(smooth, vectors[2].get(smooth, 1))
+    blksizev = fallback(blksizev, blksize)
+    blksize = fallback(blksize, vectors[2]['blksize'])
+    blksizev = fallback(blksizev, vectors[2]['blksizev'])
+    search = fallback(search, vectors[2]['search'])
+    searchparam = fallback(searchparam, vectors[2]['searchparam'])
+    _lambda = fallback(_lambda, vectors[2]['_lambda'])
+    chroma = fallback(chroma, vectors[2]['chroma'])
+    truemotion = fallback(truemotion, vectors[2]['truemotion'])
+    pnew = fallback(pnew, vectors[2]['pnew'])
+    overlapv = fallback(overlapv, overlap)
+    overlap = fallback(overlap, vectors[2]['overlap'])
+    overlapv = fallback(overlapv, vectors[2]['overlapv'])
+    divide = fallback(divide, vectors[2]['divide'])
+    meander = fallback(meander, vectors[2]['meander'])
+    fields = fallback(fields, vectors[2]['fields'])
+    tff = fallback(tff, vectors[2]['tff'])
+    dct = fallback(dct, vectors[2]['dct'])
     
     overlap = min(overlap, blksize >> 1) >> ssw << ssw)
     overlapv = min(overlapv, blksizev >> 1) >> ssw << ssw)
@@ -125,8 +125,8 @@ def Recalculate(super, vectors, radius=None, thsad=None, smooth=None, blksize=No
 
 def Compensate(clip, super, vectors, radius=None, cclip=None, scbehavior=1, thsad=10000.0, thsad2=None, fields=False, time=100.0, thscd1=400.0, thscd2=130.0, tff=None, interleaved=True, opt=True):
     
-    radius = util.fallback(radius, min(len(x) for x in vectors[:2]))
-    tff = util.fallback(tff, vectors[2]['tff'])
+    radius = fallback(radius, min(len(x) for x in vectors[:2]))
+    tff = fallback(tff, vectors[2]['tff'])
     
     vectors = Interleave(vectors, radius)
     
@@ -143,7 +143,7 @@ def Compensate(clip, super, vectors, radius=None, cclip=None, scbehavior=1, thsa
         thscd1   = round(thscd1)
         thscd2   = round(thscd2)
         
-    cclip = util.fallback(cclip, clip)
+    cclip = fallback(cclip, clip)
     
     def comp(isb, delta): return MCompensate(clip, super[0], vectors[1 - isb][abs(delta)], scbehavior=scbehavior, thsad=thsad, fields=fields, time=time, thscd1=thscd1, thscd2=thscd2, tff=tff)
     
@@ -160,13 +160,13 @@ def Compensate(clip, super, vectors, radius=None, cclip=None, scbehavior=1, thsa
 def Degrain(clip, super, vectors, radius=None, thsad=400., thsad2=None, planes=None, limit=None, thscd1=400., thscd2=130., opt=True):
     
     numplanes = clip.format.num_planes
-    radius = util.fallback(radius, min(len(x) for x in vectors[:2])
-    thsad = util.append_params(thsad, numplanes)
+    radius = fallback(radius, min(len(x) for x in vectors[:2])
+    thsad = append_params(thsad, numplanes)
     if thsad2 is not None:
-        thsad2 = util.append_params(thsad2, numplanes)
-    planes = util.parse_planes(planes, numplanes, 'mv.Degrain')
-    planes = util.vs_to_mv(planes)
-    limit = util.append_params(limit, numplanes)
+        thsad2 = append_params(thsad2, numplanes)
+    planes = parse_planes(planes, numplanes, 'mv.Degrain')
+    planes = vs_to_mv(planes)
+    limit = append_params(limit, numplanes)
     
     if clip.format.sample_type == vs.INTEGER:
         thsadc = round(thsad[-1])
