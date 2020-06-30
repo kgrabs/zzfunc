@@ -12,7 +12,6 @@ def Resharpen(flt, src, sharpener='gauss 1', prefilter=None, darkened_merge=1, b
         overshoot = f' {undershoot} - '
     
     flt = split(flt)
-    pre = flt[0]
     if isinstance(src, vs.VideoNode):
         src = get_y(src)
     else:
@@ -20,8 +19,11 @@ def Resharpen(flt, src, sharpener='gauss 1', prefilter=None, darkened_merge=1, b
     
     null = 0 if flt[0].format.sample_type else 1 << (flt[0].format.bits_per_sample - 1)
     
+    pre = flt[0]
     if prefilter is None:
         pass
+    elif isinstance(prefilter, vs.VideoNode):
+        pre = prefilter
     elif isinstance(prefilter, int):
         if prefilter < 0:
             pre = rgvs.sbr(pre, r=abs(prefilter))
