@@ -1,5 +1,5 @@
 import vapoursynth as vs
-from .util import split, join, parse_planes, append_params, fallback, get_y, ascii_lowercase, XYZs, vs_to_fmtc
+from .util import split, join, parse_planes, append_params, fallback, get_y, ascii_lowercase, XYZs, vs_to_fmtc, log2
 
 
 
@@ -281,5 +281,38 @@ def CombineClips(clips, oper='max', planes=None, prefix='', suffix=''):
     planes = parse_planes(planes, numplanes, 'CombineClips')
     expr = ''.join(XYZs[:length])
     for x in range(length - 1):
+
+
+
+def Build_a_Blur(clip, weights, radius, strength=log2(3)):
+    core = vs.core
+    
+    clip = core.std.Expr([clip, weights], 'x y *')
+    
+    matrix = [1]
+    weight = 0.5 ** strength / ((1 - 0.5 ** strength) / 2)
+    for x in range(radius):
+        matrix.append(abs(matrix[-1]) / weight)
+    matrix = [matrix[x] for x in range(radius, 0, -1)] + matrix
+    
+    blur = core.std.Convolution(clip, matrix=matrix, divisor=1, mode='h')
+    blur = core.std.Convolution(blur, matrix=matrix, divisor=1, mode='v')
+    
+    weights = core.std.Convolution(weights, matrix=matrix, divisor=1, mode='h')
+    weights = core.std.Convolution(weights, matrix=matrix, divisor=1, mode='v')
+    
+    return core.std.Expr([blur, weights], 'x y /')
+
+
+
+def Deviation(clip, radius, mode='stdev', planes=None):
+    core = vs.core
+    numplanes = clip.format.num_planes
+    planes = parse_planes(clip, numplanes, 'deviation')
+    bblur = rgvs.Blur(clip, radius, planes=planes, bmode='box')
+    expr = 'x y - abs'
+    if mode.lower()[0] == 's':
+        expr += ' dup *'
+    return core.std.Expr([clip, bblur], [expr if x in planes else '' for x in range(numplanes)])
         expr += f' {oper} '
     return core.std.Expr(clips, [prefix+expr+suffix if x in planes else '' for x in range(numplanes)])
