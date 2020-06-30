@@ -1,4 +1,5 @@
 import vapoursynth as vs
+import rgvs
 from .util import split, join, parse_planes, append_params, fallback, get_y, ascii_lowercase, XYZs, vs_to_fmtc, log2
 
 
@@ -281,6 +282,8 @@ def CombineClips(clips, oper='max', planes=None, prefix='', suffix=''):
     planes = parse_planes(planes, numplanes, 'CombineClips')
     expr = ''.join(XYZs[:length])
     for x in range(length - 1):
+        expr += f' {oper} '
+    return core.std.Expr(clips, [prefix+expr+suffix if x in planes else '' for x in range(numplanes)])
 
 
 
@@ -314,5 +317,4 @@ def Deviation(clip, radius, mode='stdev', planes=None):
     if mode.lower()[0] == 's':
         expr += ' dup *'
     return core.std.Expr([clip, bblur], [expr if x in planes else '' for x in range(numplanes)])
-        expr += f' {oper} '
-    return core.std.Expr(clips, [prefix+expr+suffix if x in planes else '' for x in range(numplanes)])
+                                 
