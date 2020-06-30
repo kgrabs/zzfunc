@@ -1,182 +1,10 @@
 import vapoursynth as vs
 from vsutil import iterate, fallback, depth, get_subsampling, get_plane_size, insert_clip
 from functools import partial
+from string import ascii_lowercase, ascii_uppercase
 
-
-
-def MinFilter(source, filtered_a, filtered_b, planes=None, strict=True):
-    core = vs.core
-    
-    fmt = source.format
-    numplanes = fmt.num_planes
-    
-    if not fmt==filtered_a.format==filtered_b.format:
-        raise TypeError('zzfunc.MaxFilter: all clips must have the same format')
-    
-    clips = [source, filtered_a, filtered_b]
-    
-    planes = parse_planes(planes, numplanes, 'minfilter')
-    strict = append_params(strict, numplanes)
-    
-    # calculating the median is quicker
-    # this could be replaced with something like rgvs.Clense or average.Median if there's ever a filter faster than std.Expr
-    expr = 'x y - abs x z - abs < y z ?'
-    s_expr = 'x y z min max y z max min'
-    
-    return core.std.Expr(clips, [(s_expr if strict[x] else expr) if x in planes else '' for x in range(numplanes)])
-
-def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=None, xor='* 0 <'):
-    core = vs.core
-    
-    fmt = source.format
-    numplanes = clip.format.num_planes
-    bits = fmt.bits_per_sample
-    isflt = fmt.sample_type == vs.FLOAT
-    
-    minimum = [0, -0.5, -0.5] if isflt else [0] * 3
-    neutral = 0 if isflt else 1 << (bits - 1)
-    peak = [1, 0.5, 0.5] if isflt else [(1 << bits) - 1] * 3
-    
-    if not fmt==filtered_a.format==filtered_b.format:
-        raise TypeError('zzfunc.MaxFilter: all clips must have the same format')
-    
-    clips = [source, filtered_a, filtered_b]
-    if ref is not None:
-        if isinstance(ref, vs.VideoNode):
-            clips += [ref]
-        else:
-            clips += ref
-    
-    planes = parse_planes(planes, numplanes, 'maxfilter')
-    strict = append_params(strict, numplanes)
-    
-    # pass the average of the filtered clips when strict=True
-    strict = ['y z + 2 /' if strict[x] is True else strict[x] for x in range(numplanes)]
-    
-    # expression when strict=False
-    expr = 'x y - abs x z - abs > y z ?'
-    
-    # build strict expressions
-    s_expr = [f'x y - x z - {xor} {x} {expr} ?' for x in strict]
-    
-    # replace "minimum", "neutral" and "peak" with i.e. for 8 bit: 0, 128, 255
-    #                                                   float luma: 0, 0, 1
-    #                                                   float chroma: -0.5, 0, 0.5
-    s_expr = [s_expr[x].replace('neutral', f'{neutral}').replace('peak', f'{peak[x]}').replace('minimum', f'{minimum[x]}') for x in range(numplanes)]
-    
-    return core.std.Expr(clips, [(expr if strict[x] is False else s_expr[x]) if x in planes else '' for x in range(numplanes)])
-
-
-
-def xpassfilter(clip, prefilter, lofilter=None, hifilter=None, safe=True, planes=None):
-    core = vs.core
-    
-    fmt = clip.format
-    planes = parse_planes(planes, fmt.num_planes, 'util.xpassfilter')
-    
-    loclip = prefilter(clip)
-    hiclip = core.std.MakeDiff(clip, loclip, planes=planes)
-    if fmt.sample_type == vs.INTEGER and safe:
-        loclip = core.std.MakeDiff(clip, hiclip, planes=planes)
-    
-    if lofilter is not None:
-        loclip = lofilter(loclip)
-    
-    if hifilter is not None:
-        hiclip = hifilter(hiclip)
-    
-    return core.std.MergeDiff(loclip, hiclip, planes=planes)
-
-
-
-# "planes" parameter not really recommended since it trashes planes, but its there if you need it
-def padding(clip, left=0, right=0, top=0, bottom=0, planes=None):
-    core = vs.core
-    if clip.format.bits_per_sample > 8:
-        numplanes = clip.format.num_planes
-        planes = parse_planes(planes, numplanes, 'util.padding')
-        return core.fmtc.resample(clip, sx=-left, sy=-top, sw=clip.width+left+right, sh=clip.height+top+bottom, kernel='point', planes=vs_to_fmtc(planes, numplanes))
-    return core.resize.Point(clip, src_left=-left, src_top=-top, src_width=clip.width+left+right, src_height=clip.height+top+bottom)
-
-
-
-def shiftplanes(clip, x=0, y=0, planes=None, nop=2):
-    core = vs.core
-    
-    fmt = clip.format
-    bits = fmt.bits_per_sample
-    hss = fmt.subsampling_w
-    vss = fmt.subsampling_h
-    numplanes = fmt.num_planes
-    planes = parse_planes(planes, numplanes, 'util.shiftplanes')
-    fmtcplanes = vs_to_fmtc(planes, numplanes, nop)
-    
-    x = x if isinstance(x, list) else [x]
-    if len(x) == 1:
-        x += [x[0] >> hss]
-    x = append_params(x, numplanes)
-    y = y if isinstance(y, list) else [y]
-    if len(y) == 1:
-        y += [y[0] >> vss]
-    y = append_params(y, numplanes)
-    
-    if bits > 8:
-        for n in range(1, numplanes):
-            x[n] <<= hss
-            y[n] <<= vss
-        return core.fmtc.resample(clip, sx=x, sy=y, kernel='point', planes=fmtcplanes)
-    clips = split(clip)
-    for p in planes:
-        clips[p] = core.resize.Point(clips[p], src_left=x[p], src_top=y[p])
-    return join(clips)
-
-
-
-def shiftframes(clip, origin=0):
-    if origin == 0:
-        return clip
-    if isinstance(origin, tuple):
-        origin = list(origin)
-    if isinstance(origin, list):
-        step = -1 if origin[0] > origin[1] else 1
-        return [shiftframes(clip, x) for x in range(origin[0], origin[1] + step, step)]
-    if origin < 0:
-        output = clip[0] * abs(origin)
-        output += clip[:origin]
-    else:
-        output = clip[origin:]
-        output += clip[-1] * origin
-    return output
-
-
-
-def Amplify(clip, lo, hi, bits=None, sample=None):
-    core = vs.core
-    
-    fmt = clip.format
-    bits_in = fmt.bits_per_sample
-    sample_in = fmt.sample_type
-    
-    bits = fallback(bits, bits_in)
-    sample = fallback(sample, sample_in if bits == bits_in else 1 if bits == 32 else 0)
-    output_format = core.register_format(vs.GRAY, sample, bits, 0, 0)
-    
-    peak = 1 if sample else (1 << bits) - 1
-    expr = 'x {lo} - {peak/(hi-lo)}'
-    
-    return core.std.Expr(get_y(clip), expr, output_format.id)
-
-
-
-def CombineClips(clips, oper='max', planes=None, prefix='', suffix=''):
-    core = vs.core
-    length = len(clips)
-    numplanes = clip[0].format.num_planes
-    planes = parse_planes(planes, numplanes, 'util.CombineClips')
-    expr = ''.join(XYZs[:length])
-    for x in range(length - 1):
-        expr += f' {oper} '
-    return core.std.Expr(clips, [prefix+expr+suffix if x in planes else '' for x in range(numplanes)])
+ABCs = [f' {x} ' for x in ascii_lowercase]
+XYZs = [f' {x} ' for x in 'xyz'+ascii_lowercase[:-3]]
 
 
 
@@ -274,8 +102,10 @@ def parse_planes(planes, numplanes=3, name='util.parse_planes'):
     if not isinstance(planes, list):
         raise TypeError(f'zzfunc.{name}: improper "planes" format')
     planes = planes[:min(len(planes), numplanes)]
-    if any(x >= numplanes for x in planes):
-        raise ValueError(f'zzfunc.{name}: one or more "planes" values out of bounds')
+    for x in planes:
+        if x >= numplanes:
+            planes = planes[:planes.index(x)]
+            break
     return planes
 
 # if param[x] is a number less than or equal to "zero" or is explicitly False or None, delete x from "planes"
