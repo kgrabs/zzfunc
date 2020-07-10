@@ -28,7 +28,7 @@ def Resharpen(flt, src, sharpener='gauss 1', prefilter=None, darkened_merge=1, b
     elif isinstance(prefilter, int):
         if prefilter < 0:
             pre = rgvs.sbr(pre, r=abs(prefilter))
-        else
+        else:
             pre = rgvs.MinBlur(pre, r=prefilter)
     else:
         pre = prefilter(pre)
@@ -44,13 +44,13 @@ def Resharpen(flt, src, sharpener='gauss 1', prefilter=None, darkened_merge=1, b
         if darkened_merge <= 0:
             darkening_limit = 0
         else:
-            diff = core.std.Expr(diff, 'x {} < x {} * {} x ?'.format(null, darkened_merge, '' if flt[0].format.sample_type else f'{null * (1.0 - darkened_merge)} +')
+            diff = core.std.Expr(diff, 'x {} < x {} * {} x ?'.format(null, darkened_merge, '' if flt[0].format.sample_type else f'{null * (1.0 - darkened_merge)} +'))
     
     if brightened_merge < 1:
         if brightened_merge <= 0:
             brightening_limit = 0
         else:
-            diff = core.std.Expr(diff, 'x {} > x {} * {} x ?'.format(null, brightened_merge, '' if flt[0].format.sample_type else f'{null * (1.0 - darkened_merge)} +')
+            diff = core.std.Expr(diff, 'x {} > x {} * {} x ?'.format(null, brightened_merge, '' if flt[0].format.sample_type else f'{null * (1.0 - darkened_merge)} +'))
     
     clamp_expr = ' x '
     
@@ -238,7 +238,9 @@ def Amplify(clip, lo, hi, bits=None, sample=None):
     output_format = core.register_format(vs.GRAY, sample, bits, 0, 0)
     
     peak = 1 if sample else (1 << bits) - 1
-    expr = 'x {lo} - {peak/(hi-lo)}'
+    expr = f'x {lo} - {peak/(hi-lo)} *'
+    if sample:
+        expr += ' 0 max 1 min'
     
     return core.std.Expr(get_y(clip), expr, output_format.id)
 
@@ -271,7 +273,7 @@ def LevelsM(clip, points, levels, xpass=[0, 'peak'], return_expr=False):
     if return_expr:
         return expr.replace('  ', ' ')
     
-    return core.std.Expr(expr)
+    return core.std.Expr(clip, expr)
 
 
 
@@ -311,10 +313,9 @@ def Build_a_Blur(clip, weights, radius, strength=log2(3)):
 def Deviation(clip, radius, mode='stdev', planes=None):
     core = vs.core
     numplanes = clip.format.num_planes
-    planes = parse_planes(clip, numplanes, 'deviation')
-    bblur = rgvs.Blur(clip, radius, planes=planes, bmode='box')
+    planes = parse_planes(planes, numplanes, 'deviation')
+    bblur = rgvs.Blur(clip, radius, planes=planes, blur='box')
     expr = 'x y - abs'
     if mode.lower()[0] == 's':
         expr += ' dup *'
     return core.std.Expr([clip, bblur], [expr if x in planes else '' for x in range(numplanes)])
-                                 
