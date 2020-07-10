@@ -2,9 +2,10 @@ import vapoursynth as vs
 from vsutil import iterate, fallback, depth, get_subsampling, get_plane_size, insert_clip
 from functools import partial
 from string import ascii_lowercase, ascii_uppercase
+from math import floor, ceil, log2
 
-ABCs = [f' {x} ' for x in ascii_lowercase]
-XYZs = [f' {x} ' for x in 'xyz'+ascii_lowercase[:-3]]
+abc = [f' {x} ' for x in ascii_lowercase]
+xyz = [f' {x} ' for x in 'xyz'+ascii_lowercase[:-3]]
 
 
 
