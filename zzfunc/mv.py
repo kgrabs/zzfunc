@@ -26,8 +26,8 @@ def Analyse(super, radius=1, blksize=None, blksizev=None, levels=0, search=4, se
     overlapv = fallback(overlapv, blksizev >> 1)
     overlap = fallback(overlap, blksize >> 1)
     
-    overlap = min(overlap, blksize >> 1) >> ssw << ssw)
-    overlapv = min(overlapv, blksizev >> 1) >> ssw << ssw)
+    overlap = min(overlap, blksize >> 1 >> ssw << ssw)
+    overlapv = min(overlapv, blksizev >> 1 >> ssh << ssh)
     
     if super.format.sample_type == vs.FLOAT:
         MAnalyse = core.mvsf.Analyze
@@ -57,7 +57,7 @@ def Analyse(super, radius=1, blksize=None, blksizev=None, levels=0, search=4, se
         overlap >>= 1
         overlapv >>= 1
     
-    args = dict(blksize=blksize, blksizev=blksizev, search=search, searchparam=searchparam, _lambda=_lambda, chroma=chroma, truemotion=truemotion, _pnew=pnew, overlap=overlap, overlapv=overlapv, divide=divide, meander=meander, fields=fields, tff=tff, dct=dct, thsad=200.)
+    args = dict(blksize=blksize, blksizev=blksizev, search=search, searchparam=searchparam, _lambda=_lambda, chroma=chroma, truemotion=truemotion, _pnew=pnew, overlap=overlap, overlapv=overlapv, divide=divide, meander=meander, fields=fields, tff=tff, dct=dct)
     
     return [bv, fv, args]
 
@@ -67,7 +67,7 @@ Analyze = Analyse
 
 def Recalculate(super, vectors, radius=None, thsad=None, smooth=None, blksize=None, blksizev=None, search=None, searchparam=None, _lambda=None, chroma=None, truemotion=None, pnew=None, overlap=None, overlapv=None, divide=None, meander=None, fields=None, tff=None, dct=None, opt=True):
     
-    radius = fallback(radius, [len(x) for x in vectors[:2]]))
+    radius = fallback(radius, [len(x) for x in vectors[:2]])
     radius = append_params(radius, 2)
     thsad = fallback(thsad, vectors[2].get(thsad, 200))
     smooth = fallback(smooth, vectors[2].get(smooth, 1))
@@ -89,8 +89,8 @@ def Recalculate(super, vectors, radius=None, thsad=None, smooth=None, blksize=No
     tff = fallback(tff, vectors[2]['tff'])
     dct = fallback(dct, vectors[2]['dct'])
     
-    overlap = min(overlap, blksize >> 1) >> ssw << ssw)
-    overlapv = min(overlapv, blksizev >> 1) >> ssw << ssw)
+    overlap = min(overlap, blksize >> 1 >> ssw << ssw)
+    overlapv = min(overlapv, blksizev >> 1 >> ssh << ssh)
     
     if super.format.sample_type==vs.FLOAT:
         MRecalculate = core.mvsf.Recalculate
@@ -102,8 +102,8 @@ def Recalculate(super, vectors, radius=None, thsad=None, smooth=None, blksize=No
     
     def refine(vec): return MRecalculate(super, vec, thsad=thsad, smooth=smooth, blksize=blksize, blksizev=blksizev, search=search, searchparam=searchparam, _lambda=_lambda, chroma=chroma, truemotion=truemotion, pnew=pnew, overlap=overlap, overlapv=overlapv, divide=divide, meander=meander, fields=fields, tff=tff, dct=dct)
     
-    bv = [refine(x) for x in vectors[0][:radius[0]]
-    fv = [refine(x) for x in vectors[1][:radius[1]]
+    bv = [refine(x) for x in vectors[0][:radius[0]]]
+    fv = [refine(x) for x in vectors[1][:radius[1]]]
     
     blksize >>= 1
     blksizev >>= 1
@@ -117,7 +117,7 @@ def Recalculate(super, vectors, radius=None, thsad=None, smooth=None, blksize=No
         overlap >>= 1
         overlapv >>= 1
     
-    args = dict(thsad=thsad/2, smooth=smooth, blksize=blksize, blksizev=blksizev, search=search, searchparam=searchparam, _lambda=_lambda, chroma=chroma, truemotion=truemotion, _pnew=pnew, overlap=overlap, overlapv=overlapv, divide=divide, meander=meander, fields=fields, tff=tff, dct=dct, thsad=200.)
+    args = dict(thsad=thsad/2, smooth=smooth, blksize=blksize, blksizev=blksizev, search=search, searchparam=searchparam, _lambda=_lambda, chroma=chroma, truemotion=truemotion, _pnew=pnew, overlap=overlap, overlapv=overlapv, divide=divide, meander=meander, fields=fields, tff=tff, dct=dct)
     
     return [bv, fv, args]
 
@@ -147,7 +147,7 @@ def Compensate(clip, super, vectors, radius=None, cclip=None, scbehavior=1, thsa
     
     def comp(isb, delta): return MCompensate(clip, super[0], vectors[1 - isb][abs(delta)], scbehavior=scbehavior, thsad=thsad, fields=fields, time=time, thscd1=thscd1, thscd2=thscd2, tff=tff)
     
-    bcomp = [comp(1, i) for i in range(radius]
+    bcomp = [comp(1, i) for i in range(radius)]
     fcomp = [comp(0, i) for i in range(radius)]
     comp = bcomp + [cclip] + fcomp
     
@@ -160,7 +160,7 @@ def Compensate(clip, super, vectors, radius=None, cclip=None, scbehavior=1, thsa
 def Degrain(clip, super, vectors, radius=None, thsad=400., thsad2=None, planes=None, limit=None, thscd1=400., thscd2=130., opt=True):
     
     numplanes = clip.format.num_planes
-    radius = fallback(radius, min(len(x) for x in vectors[:2])
+    radius = fallback(radius, min(len(x) for x in vectors[:2]))
     thsad = append_params(thsad, numplanes)
     if thsad2 is not None:
         thsad2 = append_params(thsad2, numplanes)
