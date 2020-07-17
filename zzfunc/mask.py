@@ -57,15 +57,19 @@ def overlaymask(clip, ncop=None, nced=None, op=None, ed=None, w=None, h=None, th
 
 
 
-def decensor(clip, tits, radius, min_length, smooth, *thr):
+def replaceframes(clipa, clipb, thr, radius, min_length=1, smooth=0, crop=0):
     peak = 1 if clip.format.sample_type else (1 << clip.format.bits_per_sample) - 1
-    clip = core.std.Expr([clip, tits], [f'x y - abs {t} > {peak} 0 ?' for t in thr])
+    clip = core.std.Expr([clip, tits], 'x y - abs')
+    clip = core.std.Binarize(thr)
     clip = core.resize.Point(clip, format=clip.format.replace(subsampling_w=0, subsampling_h=0).id)
     clip = core.std.Expr(split(clip), 'x y z max max')
     clip = iterate(clip, core.std.Minimum, radius)
     def _binarize_frame(n, f, clip=clip): return core.std.BlankClip(clip, color=peak if f.props.PlaneStatsMax else 0)
-    prop_src = clip.std.Crop(10,10,10,10).std.PlaneStats()
+    prop_src = core.std.Crop(clip, crop, crop, crop, crop) if crop else clip
+    prop_src = core.std.PlaneStats(prop_src)
     clip = core.std.FrameEval(clip, _binarize_frame, prop_src=prop_src)
+    
+    # This part is biased toward zeroing the mask (passing clipa)
     if min_length == 2:
         med = rgvs.Clense(clip)
         clip = core.std.Expr([clip, med], 'x y min')
@@ -73,6 +77,8 @@ def decensor(clip, tits, radius, min_length, smooth, *thr):
         thr = 0.5 if clip.format.sample_type else peak // 2
         avg = core.misc.AverageFrames(clip, [1] * ((min_length * 2) + 1)).std.Binarize(thr)
         clip = core.std.Expr([clip, avg], 'x y min')
+    
+    # TODO: make smooth equal to the amount of transition frames (currently smooth * 2 == transition frames)
     if smooth > 0:
         from .std import shiftframes, CombineClips
         clip = shiftframes(clip, [-smooth, smooth])
