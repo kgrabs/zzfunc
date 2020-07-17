@@ -1,6 +1,6 @@
 import vapoursynth as vs
 import rgvs
-from .util import split, join, parse_planes, append_params, fallback, get_y, ascii_lowercase, XYZs, vs_to_fmtc, log2
+from .util import split, join, parse_planes, append_params, fallback, get_y, ascii_lowercase, xyz, vs_to_fmtc, log2
 
 
 
@@ -280,9 +280,9 @@ def LevelsM(clip, points, levels, xpass=[0, 'peak'], return_expr=False):
 def CombineClips(clips, oper='max', planes=None, prefix='', suffix=''):
     core = vs.core
     length = len(clips)
-    numplanes = clip[0].format.num_planes
+    numplanes = clips[0].format.num_planes
     planes = parse_planes(planes, numplanes, 'CombineClips')
-    expr = ''.join(XYZs[:length])
+    expr = ''.join(xyz[:length])
     for x in range(length - 1):
         expr += f' {oper} '
     return core.std.Expr(clips, [prefix+expr+suffix if x in planes else '' for x in range(numplanes)])
