@@ -54,21 +54,18 @@ def split(clip):
 def join(clipa, clipb=None, clipc=None, colorfamily=None):
     if isinstance(clipa, list):
         clips = clipa
-    elif isinstance(clipa, tuple):
-        clips = list(clipa)
     else:
         clips = [clipa]
-    while len(clips) < 3:
-        clips.append(None)
+    
     if clipb is not None:
-        clips[1] = [clipb]
+        clips += [clipb]
     if clipc is not None:
-        clips[2] = [clipc]
-    if clips[1] is None:
+        clips += [clipc]
+    if len(clips) == 1:
         return clips[0]
     core = vs.core
     colorfamily = fallback(colorfamily, vs.RGB if clips[0].format.color_family==vs.RGB else vs.YUV)
-    if clips[2] is None:
+    if len(clips) == 2:
         return core.std.ShufflePlanes(clips, planes=[0, 1, 2], colorfamily=colorfamily)
     return core.std.ShufflePlanes(clips, planes=[0] * 3, colorfamily=colorfamily)
 
