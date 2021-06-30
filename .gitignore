@@ -1,0 +1,9 @@
+.mypy_cache/
+.vscode
+*.cfg
+*.pyc
+*.vpy
+build/
+dist/
+zzfunc.egg-info/
+venv/
