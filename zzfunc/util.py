@@ -1,5 +1,5 @@
 import vapoursynth as vs
-from vsutil import iterate, fallback, depth, get_subsampling, get_plane_size, insert_clip
+from vsutil import iterate, fallback, depth, get_subsampling, get_plane_size, insert_clip, scale_value
 from functools import partial
 from string import ascii_lowercase, ascii_uppercase
 from math import floor, ceil, log2
@@ -83,6 +83,36 @@ def _get_plane(clip, plane):
 get_y, get_u, get_v, get_r, get_g, get_b = [partial(_get_plane, plane=x) for x in (0,1,2,0,1,2)]
 
 
+
+
+def mod(number, modulo=16, rounder=round): return rounder(number/modulo) * modulo
+
+
+
+def parse_params(args, fallback=None, mi=None, ma=None, as_list=False, length=None, lower=False):
+    if not length:
+        length = 1
+        if isinstance(args, (list, set, tuple)):
+            length = len(args)
+    def x_to_array(x, l):
+        if isinstance(x, (tuple, set)):
+            x = list(x)
+        if not isinstance(x, list):
+            x = [x]
+        while len(x) < l:
+            x.append(x[-1])
+        return x
+    args, fallback = [x_to_array(x, length) for x in (args, fallback)]
+    for x in range(length):
+        if args[x] is None:
+            args[x] = fallback[x]
+        if mi is not None:
+            args[x] = max(args[x], mi)
+        if ma is not None:
+            args[x] = min(args[x], ma)
+        if lower:
+            args[x] = args[x].lower()
+    return args[:length] if as_list else args[0]
 
 def append_params(params, length=3):
     if not isinstance(params, list):
