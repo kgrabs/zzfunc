@@ -1,4 +1,8 @@
-from . import mask, misc, mv, std, util
+from . import mask, misc, std, tv, util
+
+resize_mclip = mask.resize_mclip
+
+minmax = mask.minmax_mask
 
 overlaymask = mask.overlaymask
 overlays = mask.overlaymask
@@ -12,6 +16,11 @@ tlines = mask.t_linemask
 
 colormask = mask.colormask
 colors = mask.colormask
+
+tweak = std.Tweak
+
+maxm = std.Maximum
+minm = std.Minimum
 
 resharpen = std.Resharpen
 
@@ -32,15 +41,24 @@ amplify = std.Amplify
 amp = std.Amplify
 
 levelsm = std.LevelsM
-levels = std.LevelsM
 
 combineclips = std.CombineClips
 combine = std.CombineClips
 
-buildablur = std.Build_a_Blur
-
 deviation = std.Deviation
 dev = std.Deviation
+
+epilepsy = tv.Epilepsy
+fader = tv.Fader
+autobalance = tv.Autobalance
+
+decensor = tv.Decensor
+
+customdeblock = tv.CustomDeblock
+
+iscombed = tv.iscombed
+
+mpeg2stinx = tv.mpeg2stinx
 
 mixd = util.mixed_depth
 
@@ -58,12 +76,3 @@ w = util.get_w
 
 split = util.split
 join = util.join
-
-#f3kdb = deband.f3kdb
-#f3kpf = deband.highpass
-#placebo = deband.placebo
-#lfdeband = deband.low_res_f3kdb
-#dbilateral = deband.Dither_gf3_bilateral_multistage
-
-#rangemask = mask.minmax
-#lumamask = mask.luma
