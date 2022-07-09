@@ -38,7 +38,7 @@ def Decensor(censored, uncensored, radius=5, min_length=3, smooth=6, thr=None, b
 ```
 Function for combining clips using the difference to find full and partial censoring, with automatic and manual techniques and various preview/debug features.
 
-# Parameters
+#### Parameters
 `radius`: The amount of times to shrink the diff after binarizing (see: thr) Used for full-frame decensoring
 
 `min_length`: ideally removes any string of positive (censored) frames shorter than x, in reality it checks whether the temporal neighborhood has a majority of positive frames (50% or more in x * 2 + 1) so if you have for example a repeating sequence of 2 positive, one negative it wont do anything. Should help with motion artifacts and combing
