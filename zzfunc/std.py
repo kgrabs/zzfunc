@@ -1,6 +1,182 @@
 import vapoursynth as vs
-import rgvs
-from .util import split, join, parse_planes, append_params, fallback, get_y, ascii_lowercase, xyz, vs_to_fmtc, log2
+import vsrgtools as rgvs
+from .util import split, join, parse_planes, append_params, fallback, get_y, ascii_lowercase, xyz, vs_to_fmtc, log2, partial
+
+
+
+def Tweak(clip, hue=None, sat=None, bright=None, cont=None, \
+          relative_sat=None, \
+          range_in=None, range=None, range_scale=None, \
+          bits=None, bits_scale=None, \
+          sample=None, sample_scale=None, \
+          clamp=True, pre=None, post=None):
+    core = vs.core
+    from math import sin, cos
+
+    if clip.format is None:
+        raise vs.Error("Tweak: only clips with constant format are accepted.")
+    
+    bits_in = clip.format.bits_per_sample
+    sample_in = clip.format.sample_type
+    
+    def _get_range_prop(clip):
+        frame = clip.get_frame(0)
+        if '_ColorRange' in frame.props:
+            return 1 - frame.props._ColorRange
+        return 0
+    
+    if sample_in == 0:
+        range_in         = fallback(range_in, _get_range_prop(clip))
+        peak_in          = (1 << bits_in) - 1
+        luma_min_in      = 0 if range_in else 16 << (bits_in - 8)
+        luma_size_in     = peak_in if range_in else 219 << (bits_in - 8)
+        chroma_size_in   = peak_in if range_in else 224 << (bits_in - 8)
+        chroma_center_in = 1 << (bits_in - 1)
+    else:
+        range_in         = 1
+        luma_min_in      = 0
+        luma_size_in     = 1
+        chroma_size_in   = 1
+        chroma_center_in = 0
+    
+    bits_scale = fallback(bits_scale, bits_in)
+    sample_scale = fallback(sample_scale, sample_in)
+    range_scale = fallback(range_scale, range_in)
+    
+    bits = fallback(bits, bits_in)
+    sample = 0 if bits < 16 else fallback(sample, 1 if bits == 32 else sample_in)
+    range_ = fallback(range, range_in)
+    del range
+    
+    convert = bits != bits_in or sample != sample_in or range_ != range_in
+    
+    if sample == 0:
+        luma_min      = 0 if range_ else 16 << (bits - 8)
+        chroma_min    = luma_min
+        peak          = (1 << bits) - 1
+        luma_max      = peak if range_ else 235 << (bits - 8)
+        luma_size     = peak if range_ else 219 << (bits - 8)
+        chroma_max    = peak if range_ else 240 << (bits - 8)
+        chroma_size   = peak if range_ else 224 << (bits - 8)
+        chroma_center = 1 << (bits - 1)
+    else:
+        range_        = 1
+        luma_min      = 0
+        chroma_min    = -0.5
+        luma_max      = 1
+        luma_size     = 1
+        chroma_max    = 0.5
+        chroma_size   = 1
+        chroma_center = 0
+    
+    bright = fallback(bright, 0)
+    cont = fallback(cont, 1)
+    
+    if isinstance(cont, list):
+        zero = 0 if sample_scale or range_scale else 16 << (bits_scale - 8)
+        if len(cont) < 2: # assume white is the target value
+            cont += [1 if sample_scale else (1 << bits_scale) - 1 if range_scale else 235 << (bits_scale - 8)]
+        cont = (cont[1] - zero)/(cont[0] - zero)
+    
+    if relative_sat is not None: # might be broken when cont < 1 and relative_sat > 1
+        if cont == 1 or relative_sat == 1:
+            sat = cont
+        else:
+            sat = (cont - 1) * relative_sat + 1
+
+    hue = fallback(hue, 0)
+    sat = fallback(sat, 1)
+    
+    cont = max(cont, 0)
+    sat = max(sat, 0)
+    
+    if (hue == bright == 0) and (sat == cont == 1):
+        if convert:
+            return depth(clip, bitdepth=bits, sample_type=sample, range=range, range_in=range_in)
+        return clip
+    
+    if callable(pre):
+        pre = pre(clip)
+    else:
+        pre = fallback(pre, clip)
+    
+    clips = [pre]
+    yexpr = ''
+    cexpr = ''
+
+    if (hue != 0 or sat != 1 or convert) and clip.format.color_family != vs.GRAY:
+        if chroma_size_in != chroma_size:
+            sat *= chroma_size / chroma_size_in
+        
+        hue *= pi / 180.0
+        hue_sin = sin(hue)
+        hue_cos = cos(hue)
+        
+        normalize = '' if sample else f' {chroma_center_in} - '
+        
+        # normalize & apply sat/conversion
+        cexpr = f' x {normalize} {hue_cos * sat} * '
+        
+        if hue != 0: # apply hue if needed
+            clips += [pre.std.ShufflePlanes([0,2,1], vs.YUV)]
+            cexpr += f' y {normalize} {hue_sin * sat} * + '
+        
+        if sample == 0:
+            cexpr += f' {chroma_center} +'
+        
+        if clamp and not (sample == 0 and range_):
+            cexpr += f' {chroma_min} max {chroma_max} min '
+
+    if bright != 0 or cont != 1 or convert:
+        if luma_size_in != luma_size:
+            cont *= luma_size / luma_size_in
+        
+        yexpr = ' x '
+        
+        if luma_min_in > 0:
+            yexpr += f' {luma_min_in} - '
+        
+        if cont != 1:
+            yexpr += f' {cont} * '
+        
+        if (luma_min + bright) != 0:
+            yexpr += f' {luma_min + bright} + '
+        
+        if clamp and not (sample == 0 and range_):
+            yexpr += f' {luma_min} max {luma_max} min '
+    
+    tweak_clip = core.std.Expr(clips, [yexpr, cexpr])
+    
+    if callable(post):
+       return post(tweak_clip)
+
+    return tweak_clip
+
+
+
+def M__imum(clip, video_function, radius=1, coordinates=None, mode='ellipse', pass_coordinates_info=True, **params):
+    if coordinates is None:
+        if mode == 'ellipse':
+            coordinates = [[1]*8, [0,1,0,1,1,0,1,0], [0,1,0,1,1,0,1,0]]
+        elif mode == 'losange':
+            coordinates = [[0,1,0,1,1,0,1,0]]
+        else:
+            coordinates = [[1]*8]
+    elif isinstance(coordinates[0], int):
+        coordinates = [coordinates]
+    
+    output = [clip]
+    
+    for i in range(radius):
+        output += [video_function(clip=output[-1], coordinates=coordinates[i % len(coordinates)], **params)]
+    
+    if pass_coordinates_info:
+        output[0] = coordinates
+    
+    return output
+
+Maximum = partial(M__imum, video_function=vs.core.std.Maximum)
+Minimum = partial(M__imum, video_function=vs.core.std.Minimum)
 
 
 
@@ -94,18 +270,20 @@ def MinFilter(source, filtered_a, filtered_b, planes=None, strict=True):
     planes = parse_planes(planes, numplanes, 'minfilter')
     strict = append_params(strict, numplanes)
     
-    # calculating the median is quicker
-    # this could be replaced with something like rgvs.Clense or average.Median if there's ever a filter faster than std.Expr
-    expr = 'x y - abs x z - abs < y z ?'
-    s_expr = 'x y z min max y z max min'
+    ps = [strict[x] for x in planes]
+    if len(set(ps)) == 1:
+        if ps[0]:
+            return core.std.Interleave([source, filtered_a, filtered_b]).tmedian.TemporalMedian(1, planes)[1::3]
     
-    return core.std.Expr(clips, [(s_expr if strict[x] else expr) if x in planes else '' for x in range(numplanes)])
+    expr = ['' if x not in planes else 'x y z min max y z max min' if strict[x] else 'x y - abs x z - abs < y z ?' for x in range(numplanes)]
+    
+    return core.std.Expr(clips, )
 
 def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=None, xor='* 0 <'):
     core = vs.core
     
     fmt = source.format
-    numplanes = source.format.num_planes
+    numplanes = clip.format.num_planes
     bits = fmt.bits_per_sample
     isflt = fmt.sample_type == vs.FLOAT
     
@@ -171,8 +349,8 @@ def padding(clip, left=0, right=0, top=0, bottom=0, planes=None):
     if clip.format.bits_per_sample > 8:
         numplanes = clip.format.num_planes
         planes = parse_planes(planes, numplanes, 'padding')
-        return core.fmtc.resample(clip, sx=-left, sy=-top, sw=clip.width+left+right, sh=clip.height+top+bottom, kernel='point', planes=vs_to_fmtc(planes, numplanes))
-    return core.resize.Point(clip, src_left=-left, src_top=-top, src_width=clip.width+left+right, src_height=clip.height+top+bottom)
+        return core.fmtc.resample(clip, clip.width+left+right, clip.height+top+bottom, -left, -top, clip.width+left+right, clip.height+top+bottom, kernel='point', planes=vs_to_fmtc(planes, numplanes))
+    return core.resize.Point(clip, clip.width+left+right, clip.height+top+bottom, src_left=-left, src_top=-top, src_width=clip.width+left+right, src_height=clip.height+top+bottom)
 
 
 
@@ -289,27 +467,6 @@ def CombineClips(clips, oper='max', planes=None, prefix='', suffix=''):
 
 
 
-def Build_a_Blur(clip, weights, radius, strength=log2(3)):
-    core = vs.core
-    
-    clip = core.std.Expr([clip, weights], 'x y *')
-    
-    matrix = [1]
-    weight = 0.5 ** strength / ((1 - 0.5 ** strength) / 2)
-    for x in range(radius):
-        matrix.append(abs(matrix[-1]) / weight)
-    matrix = [matrix[x] for x in range(radius, 0, -1)] + matrix
-    
-    blur = core.std.Convolution(clip, matrix=matrix, divisor=1, mode='h')
-    blur = core.std.Convolution(blur, matrix=matrix, divisor=1, mode='v')
-    
-    weights = core.std.Convolution(weights, matrix=matrix, divisor=1, mode='h')
-    weights = core.std.Convolution(weights, matrix=matrix, divisor=1, mode='v')
-    
-    return core.std.Expr([blur, weights], 'x y /')
-
-
-
 def Deviation(clip, radius, mode='stdev', planes=None):
     core = vs.core
     numplanes = clip.format.num_planes
@@ -319,3 +476,4 @@ def Deviation(clip, radius, mode='stdev', planes=None):
     if mode.lower()[0] == 's':
         expr += ' dup *'
     return core.std.Expr([clip, bblur], [expr if x in planes else '' for x in range(numplanes)])
+                                 
