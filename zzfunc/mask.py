@@ -1,7 +1,21 @@
 import vapoursynth as vs
 import havsfunc as haf
-import rgvs
-from .util import depth, split, join, fallback, iterate, get_y, partial, mixed_depth, append_params, parse_planes
+import vsrgtools as rgvs
+from .util import depth, split, join, fallback, iterate, get_y, partial, mixed_depth, append_params, parse_planes, ceil
+from .std import Maximum, Minimum
+
+
+
+def resize_mclip(mclip, w=None, h=None):
+    iw = mclip.width
+    ih = mclip.height
+    ow = fallback(w, iw)
+    oh = fallback(h, ih)
+    
+    if (ow > iw and ow/iw != ow//iw) or (oh > ih and oh/ih != oh//ih):
+        mclip = mclip.resize.Point(iw * ceil(ow / iw), ih * ceil(oh / ih))
+    
+    return mclip.fmtc.resample(ow, oh, kernel='box', fulls=1, fulld=1)
 
 
 
@@ -57,34 +71,22 @@ def overlaymask(clip, ncop=None, nced=None, op=None, ed=None, w=None, h=None, th
 
 
 
-def replaceframes(clipa, clipb, thr, radius, min_length=1, smooth=0, crop=0):
-    peak = 1 if clip.format.sample_type else (1 << clip.format.bits_per_sample) - 1
-    clip = core.std.Expr([clip, tits], 'x y - abs')
-    clip = core.std.Binarize(thr)
-    clip = core.resize.Point(clip, format=clip.format.replace(subsampling_w=0, subsampling_h=0).id)
-    clip = core.std.Expr(split(clip), 'x y z max max')
-    clip = iterate(clip, core.std.Minimum, radius)
-    def _binarize_frame(n, f, clip=clip): return core.std.BlankClip(clip, color=peak if f.props.PlaneStatsMax else 0)
-    prop_src = core.std.Crop(clip, crop, crop, crop, crop) if crop else clip
-    prop_src = core.std.PlaneStats(prop_src)
-    clip = core.std.FrameEval(clip, _binarize_frame, prop_src=prop_src)
+def minmax_mask(clip, minarray, maxarray, radius=None, mode='morph'):
+    core = vs.core
+
+    radius = fallback(radius, min(len(minarray), len(maxarray)) - 1)
+    mode = mode.lower()
     
-    # This part is biased toward zeroing the mask (passing clipa)
-    if min_length == 2:
-        med = rgvs.Clense(clip)
-        clip = core.std.Expr([clip, med], 'x y min')
-    if min_length > 2:
-        thr = 0.5 if clip.format.sample_type else peak // 2
-        avg = core.misc.AverageFrames(clip, [1] * ((min_length * 2) + 1)).std.Binarize(thr)
-        clip = core.std.Expr([clip, avg], 'x y min')
+    minclip = minarray[radius]
+    maxclip = maxarray[radius]
     
-    # TODO: make smooth equal to the amount of transition frames (currently smooth * 2 == transition frames)
-    if smooth > 0:
-        from .std import shiftframes, CombineClips
-        clip = shiftframes(clip, [-smooth, smooth])
-        clip = CombineClips(clip)
-        clip = core.misc.AverageFrames(clip, [1] * ((smooth * 2) + 1))
-    return clip
+    if mode == 'range':
+        return core.std.Expr([minclip, maxclip], 'y x -')
+    
+    minclip = Maximum(minclip, coordinates=minarray[0][::1], radius=radius)[-1]
+    maxclip = Minimum(maxclip, coordinates=maxarray[0][::1], radius=radius)[-1]
+    
+    return core.std.Expr([clip, minclip, maxclip], 'x y - z x - max')
 
 
 
