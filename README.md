@@ -28,13 +28,7 @@ Box scaler intended for mask clips, which can probably be described as "area ave
 
 ### tv.Decensor
 ```
-def Decensor(censored, uncensored, radius=5, min_length=3, smooth=6, thr=None, bordfix=10, \
-             intra_mask=False, intra_cutoff=0.5, intra_smooth=0, \
-             intra_thr_lo=None, intra_shrink_lo=2, intra_grow_lo=15, \
-             intra_thr_hi=None, intra_shrink_hi=5, intra_grow_hi=25, \
-             intra_grow_post=50, intra_shrink_post=30, intra_deflate_post=20, \
-             censored_filtered=None, uncensored_filtered=None, \
-             disable_inter=False, debug=0, output_mappings=False, output_path=None)
+def zzfunc.decensor(censored, uncensored, radius=5, min_length=3, smooth=6, thr=None, bordfix=10, intra_mask=False, intra_cutoff=0.5, intra_smooth=0, intra_thr_lo=None, intra_shrink_lo=2, intra_grow_lo=15, intra_thr_hi=None, intra_shrink_hi=5, intra_grow_hi=25, intra_grow_post=50, intra_shrink_post=30, intra_deflate_post=20, censored_filtered=None, uncensored_filtered=None, disable_inter=False, debug=0, output_mappings=False, output_path=None)
 ```
 Function for combining clips using the difference to find full and partial censoring, with automatic and manual techniques and various preview/debug features.
 
