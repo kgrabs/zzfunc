@@ -283,7 +283,7 @@ def MaxFilter(source, filtered_a, filtered_b, planes=None, strict=False, ref=Non
     core = vs.core
     
     fmt = source.format
-    numplanes = clip.format.num_planes
+    numplanes = source.format.num_planes
     bits = fmt.bits_per_sample
     isflt = fmt.sample_type == vs.FLOAT
     
