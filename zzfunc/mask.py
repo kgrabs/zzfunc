@@ -82,9 +82,16 @@ def minmax_mask(clip, minarray, maxarray, radius=None, mode='morph'):
     
     if mode == 'range':
         return core.std.Expr([minclip, maxclip], 'y x -')
-    
-    minclip = Maximum(minclip, coordinates=minarray[0][::1], radius=radius)[-1]
-    maxclip = Minimum(maxclip, coordinates=maxarray[0][::1], radius=radius)[-1]
+
+    def rearrange(array, radius):
+        alen = len(array)
+        start = alen - (radius % alen)
+        yarra = array[::-1]
+        yarra = yarra[start:] + yarra
+        return yarra[:alen]
+
+    minclip = Maximum(minclip, coordinates=rearrange(minarray[0], radius=radius), radius=radius)[-1]
+    maxclip = Minimum(maxclip, coordinates=rearrange(maxarray[0], radius=radius), radius=radius)[-1]
     
     return core.std.Expr([clip, minclip, maxclip], 'x y - z x - max')
 
