@@ -154,7 +154,7 @@ def Tweak(clip, hue=None, sat=None, bright=None, cont=None, \
 
 
 
-def M__imum(clip, video_function, radius=1, coordinates=None, mode='ellipse', pass_coordinates_info=True, **params):
+def M__imum(clip, radius=1, coordinates=None, mode='ellipse', pass_coordinates_info=True, video_function=vs.core.std.Maximum, **params):
     if coordinates is None:
         if mode == 'ellipse':
             coordinates = [[1]*8, [0,1,0,1,1,0,1,0], [0,1,0,1,1,0,1,0]]
